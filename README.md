@@ -33,7 +33,7 @@ A **Synthesizer** then weighs all findings and posts a single verdict (Approved 
 - **Website**: [looksgoodtomeow.in](https://looksgoodtomeow.in)
 - **Docs**: [looksgoodtomeow.in/docs](https://looksgoodtomeow.in/docs)
 - **CLI**: [`@tarin/lgtm-cli`](https://www.npmjs.com/package/@tarin/lgtm-cli)
-- **GitHub App**: [Install collection-lgtm](https://github.com/apps/tarin-lgtm/installations/new)
+- **GitHub App**: [Install tarin-lgtm](https://github.com/apps/tarin-lgtm/installations/new)
 
 ## How to report a bug
 
@@ -48,6 +48,18 @@ A **Synthesizer** then weighs all findings and posts a single verdict (Approved 
 2. Pick the **Feature Request** template
 3. Describe the feature and why it would be useful
 
+## How issues are handled
+
+Issues filed here are automatically transferred to the main private LGTM repository for internal tracking and resolution. A GitHub Actions workflow runs on every new issue and uses the GitHub GraphQL API to transfer it. This means:
+
+- You file the issue here on this public repo
+- The workflow picks it up and moves it to the private repo within seconds
+- All comments, labels, and metadata are preserved during transfer
+- The issue disappears from this repo once transferred
+- The maintainer triages and resolves it internally
+
+This keeps the source code private while giving you a public place to report problems and request features.
+
 ## Labels
 
 | Label           | Meaning                      |
@@ -55,7 +67,7 @@ A **Synthesizer** then weighs all findings and posts a single verdict (Approved 
 | `bug`           | Something isn't working      |
 | `feature`       | New feature request          |
 | `question`      | General question             |
-| `cli`           | Related to `@collection/lgtm-cli` |
+| `cli`           | Related to `@tarin/lgtm-cli` |
 | `dashboard`     | Related to the web dashboard |
 | `review-agents` | Related to AI review quality |
 
