@@ -30,7 +30,7 @@ jobs:
             // Get the target repo ID
             const { repository } = await github.graphql(`
               query {
-                repository(owner: "${{ vars.TARGET_OWNER }}", name: "${{ vars.TARGET_REPO }}") {
+                repository(owner: "tarinagarwal", name: "lgtm") {
                   id
                 }
               }
