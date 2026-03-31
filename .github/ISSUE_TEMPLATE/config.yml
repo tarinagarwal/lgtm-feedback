@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://looksgoodtomeow.in/docs
+    about: Check the docs before filing an issue
+  - name: Email Support
+    url: mailto:tarinagarwal@gmail.com
+    about: For private or account-specific issues
