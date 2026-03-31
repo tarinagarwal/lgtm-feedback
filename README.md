@@ -50,12 +50,12 @@ A **Synthesizer** then weighs all findings and posts a single verdict (Approved 
 
 ## How issues are handled
 
-Issues filed here are automatically transferred to the main private LGTM repository for internal tracking and resolution. A GitHub Actions workflow runs on every new issue and uses the GitHub GraphQL API to transfer it. This means:
+Issues filed here are automatically copied to the main private LGTM repository for internal tracking and resolution. A GitHub Actions workflow runs on every new issue and uses the GitHub API to create a copy. This means:
 
 - You file the issue here on this public repo
-- The workflow picks it up and moves it to the private repo within seconds
-- All comments, labels, and metadata are preserved during transfer
-- The issue disappears from this repo once transferred
+- The workflow copies it to the private repo within seconds
+- A comment is posted on your issue confirming it's been picked up
+- Your original issue stays here — you can follow up with comments
 - The maintainer triages and resolves it internally
 
 This keeps the source code private while giving you a public place to report problems and request features.

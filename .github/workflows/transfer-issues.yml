@@ -1,55 +1,35 @@
-name: Transfer Issues to Private Repo
+name: Copy Issues to Private Repo
 
 on:
   issues:
     types: [opened]
 
 jobs:
-  transfer:
+  copy:
     runs-on: ubuntu-latest
     steps:
-      - name: Transfer issue
+      - name: Copy issue to private repo
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.TRANSFER_TOKEN }}
           script: |
             const issue = context.payload.issue;
 
-            // Transfer the issue to the private repo
-            const mutation = `
-              mutation($issueId: ID!, $repoId: ID!) {
-                transferIssue(input: { issueId: $issueId, repositoryId: $repoId }) {
-                  issue {
-                    number
-                    url
-                  }
-                }
-              }
-            `;
-
-            // Get the target repo ID
-            const { repository } = await github.graphql(`
-              query {
-                repository(owner: "tarinagarwal", name: "lgtm") {
-                  id
-                }
-              }
-            `);
-
-            // Get the issue node ID
-            const { repository: sourceRepo } = await github.graphql(`
-              query {
-                repository(owner: "${context.repo.owner}", name: "${context.repo.repo}") {
-                  issue(number: ${issue.number}) {
-                    id
-                  }
-                }
-              }
-            `);
-
-            const result = await github.graphql(mutation, {
-              issueId: sourceRepo.issue.id,
-              repoId: repository.id,
+            // Create a copy in the private repo
+            const { data: created } = await github.rest.issues.create({
+              owner: "tarinagarwal",
+              repo: "lgtm",
+              title: issue.title,
+              body: `> Copied from tarinagarwal/lgtm-feedback#${issue.number}\n> Opened by @${issue.user.login}\n\n${issue.body || ""}`,
+              labels: issue.labels.map(l => l.name),
             });
 
-            console.log(`Transferred issue #${issue.number} -> ${result.transferIssue.issue.url}`);
+            // Comment on the original issue with a confirmation
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `Thanks for filing this! This issue has been picked up by the team and is being tracked internally.`,
+            });
+
+            console.log(`Copied issue #${issue.number} -> ${created.html_url}`);
