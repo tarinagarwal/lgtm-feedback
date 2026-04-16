@@ -1,3 +1,7 @@
+# LGTM Launching Soon!
+
+
+
 # LGTM — Feedback & Bug Reports
 
 **Looks Good To Meow** is an AI-powered code review platform for GitHub pull requests.
@@ -32,8 +36,8 @@ A **Synthesizer** then weighs all findings and posts a single verdict (Approved 
 
 - **Website**: [looksgoodtomeow.in](https://looksgoodtomeow.in)
 - **Docs**: [looksgoodtomeow.in/docs](https://looksgoodtomeow.in/docs)
-- **CLI**: [`@tarin/lgtm-cli`](https://www.npmjs.com/package/@tarin/lgtm-cli)
-- **GitHub App**: [Install tarin-lgtm](https://github.com/apps/tarin-lgtm/installations/new)
+- **CLI**: [`@collection/lgtm-cli`](https://www.npmjs.com/package/@tarin/lgtm-cli)
+- **GitHub App**: [Install collection-lgtm](https://github.com/apps/tarin-lgtm/installations/new)
 
 ## How to report a bug
 
