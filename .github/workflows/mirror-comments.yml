@@ -1,0 +1,80 @@
+name: Mirror comments to private repo
+
+# When someone (usually the original reporter) comments on a public
+# feedback issue, mirror the comment onto the linked internal issue so
+# the team never misses follow-up context.
+#
+# Loop prevention:
+#   - We add a hidden HTML marker to every mirrored post; the workflow
+#     skips comments that already contain it.
+#   - We skip comments authored by bots or by the repo owner (the team
+#     already sees their own comments on the internal thread).
+#   - We only fire on `created` — edits and deletions are intentionally
+#     not mirrored (edit history would balloon internal threads).
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: mirror-comments-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  issues: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # Short-circuit before we spend a runner slot on comments that are
+    # obviously ineligible: our own mirror-back marker, bots, and the
+    # repo owner (whose comments are already visible internally).
+    if: |
+      !contains(github.event.comment.body, '<!-- lgtm-mirror -->') &&
+      !endsWith(github.event.comment.user.login, '[bot]') &&
+      github.event.comment.user.login != github.repository_owner
+    steps:
+      - name: Mirror comment to internal issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.TRANSFER_TOKEN }}
+          script: |
+            const PRIVATE_OWNER = "tarinagarwal";
+            const PRIVATE_REPO = "lgtm";
+            const publicIssue = context.payload.issue;
+            const comment = context.payload.comment;
+
+            // ── Find linked internal issue via the body marker ──
+            const match = (publicIssue.body || "").match(/<!-- lgtm-internal-issue:(\d+) -->/);
+            if (!match) {
+              core.info(`Public #${publicIssue.number} has no internal link marker — nothing to mirror.`);
+              return;
+            }
+            const internalNumber = Number(match[1]);
+            core.info(`Mirroring comment ${comment.id} → internal #${internalNumber}`);
+
+            const mirroredBody = [
+              `<!-- lgtm-mirror -->`,
+              `**@${comment.user.login} commented on ${context.repo.owner}/${context.repo.repo}#${publicIssue.number}:**`,
+              ``,
+              comment.body || "_(empty comment)_",
+              ``,
+              `---`,
+              `_Auto-mirrored from public feedback._ [View original](${comment.html_url})`,
+            ].join("\n");
+
+            try {
+              await github.rest.issues.createComment({
+                owner: PRIVATE_OWNER,
+                repo: PRIVATE_REPO,
+                issue_number: internalNumber,
+                body: mirroredBody,
+              });
+              core.info(`Mirrored to internal #${internalNumber}`);
+            } catch (err) {
+              // If the internal issue was hard-deleted the mapping is
+              // stale. Log + fail loudly so ops sees it in the runs list.
+              core.setFailed(
+                `Failed to mirror to internal #${internalNumber}: ${err.message}`,
+              );
+            }

@@ -1,35 +1,175 @@
-name: Copy Issues to Private Repo
+name: Transfer new issues to private repo
+
+# Fires when a user opens (or reopens) an issue on this public feedback
+# repo. Copies the issue into the private lgtm repo with provenance and
+# a hidden body marker so the sibling workflows (mirror-comments +
+# sync-back) can find the linked issue later.
+#
+# Design notes:
+#   - `concurrency` serialises transfers so two-users-report-the-same-
+#     -bug races land as duplicates instead of two internal issues.
+#   - Dedup search is by exact title in the internal repo. Simple; if
+#     signal drops we can tighten to fuzzy later.
+#   - Labels are best-effort — the internal repo may not have a label
+#     with the same name, so we retry without labels on 4xx.
+#   - The token (secrets.TRANSFER_TOKEN) is a fine-grained PAT scoped
+#     to Issues R/W on tarinagarwal/lgtm only.
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
+
+concurrency:
+  group: transfer-issues
+  cancel-in-progress: false
+
+permissions:
+  issues: write # comment on and label the public issue
 
 jobs:
-  copy:
+  transfer:
     runs-on: ubuntu-latest
+    # Skip transfers when the workflow marker is already present — this
+    # prevents re-transferring on a reopen after we've already mirrored.
+    if: ${{ !contains(github.event.issue.body, '<!-- lgtm-internal-issue:') }}
     steps:
-      - name: Copy issue to private repo
+      - name: Copy issue to private repo (with dedup)
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.TRANSFER_TOKEN }}
           script: |
-            const issue = context.payload.issue;
+            const PRIVATE_OWNER = "tarinagarwal";
+            const PRIVATE_REPO = "lgtm";
+            const publicIssue = context.payload.issue;
+            const publicNumber = publicIssue.number;
+            const publicAuthor = publicIssue.user.login;
 
-            // Create a copy in the private repo
-            const { data: created } = await github.rest.issues.create({
-              owner: "tarinagarwal",
-              repo: "lgtm",
-              title: issue.title,
-              body: `> Copied from tarinagarwal/lgtm-feedback#${issue.number}\n> Opened by @${issue.user.login}\n\n${issue.body || ""}`,
-              labels: issue.labels.map(l => l.name),
-            });
+            core.info(`Processing #${publicNumber} "${publicIssue.title}" by @${publicAuthor}`);
 
-            // Comment on the original issue with a confirmation
+            // ── 1) Dedup search ─────────────────────────────────────
+            // Find open internal issues that reference this exact title
+            // OR that already reference this specific public issue.
+            const escapedTitle = publicIssue.title.replace(/["\\]/g, ' ');
+            const searchQ = `repo:${PRIVATE_OWNER}/${PRIVATE_REPO} is:issue is:open in:title "${escapedTitle}"`;
+            let duplicate = null;
+            try {
+              const { data: search } = await github.rest.search.issuesAndPullRequests({
+                q: searchQ,
+              });
+              if (search.total_count > 0) {
+                duplicate = search.items[0];
+                core.info(`Possible duplicate found: internal #${duplicate.number}`);
+              }
+            } catch (err) {
+              // Search API rate limit or transient error — carry on and
+              // create a fresh issue rather than skip the whole workflow.
+              core.warning(`Dedup search failed: ${err.message}. Proceeding as new.`);
+            }
+
+            // ── 2) Create or link ───────────────────────────────────
+            let internalNumber, internalUrl, isDup = false;
+            if (duplicate) {
+              internalNumber = duplicate.number;
+              internalUrl = duplicate.html_url;
+              isDup = true;
+              // Post a cross-link comment on the internal issue so the
+              // team sees the public thread.
+              try {
+                await github.rest.issues.createComment({
+                  owner: PRIVATE_OWNER,
+                  repo: PRIVATE_REPO,
+                  issue_number: internalNumber,
+                  body: `Cross-linked from public feedback: **${context.repo.owner}/${context.repo.repo}#${publicNumber}** (opened by @${publicAuthor}).`,
+                });
+              } catch (err) {
+                core.warning(`Failed to comment on internal duplicate: ${err.message}`);
+              }
+            } else {
+              // Fresh internal issue. Body carries provenance in a
+              // form the sync-back workflow can regex-parse.
+              const provenance = [
+                `> **Copied from** ${context.repo.owner}/${context.repo.repo}#${publicNumber}`,
+                `> **Opened by** @${publicAuthor}`,
+                ``,
+              ].join("\n");
+              const labels = (publicIssue.labels ?? []).map(l => (typeof l === "string" ? l : l.name)).filter(Boolean);
+              let created;
+              try {
+                ({ data: created } = await github.rest.issues.create({
+                  owner: PRIVATE_OWNER,
+                  repo: PRIVATE_REPO,
+                  title: publicIssue.title,
+                  body: provenance + (publicIssue.body || "_(no body provided)_"),
+                  labels,
+                }));
+              } catch (err) {
+                // Common cause: a label in `labels` doesn't exist on the
+                // internal repo → 422. Retry without labels.
+                core.warning(`Create with labels failed (${err.status}). Retrying without labels…`);
+                ({ data: created } = await github.rest.issues.create({
+                  owner: PRIVATE_OWNER,
+                  repo: PRIVATE_REPO,
+                  title: publicIssue.title,
+                  body: provenance + (publicIssue.body || "_(no body provided)_"),
+                }));
+              }
+              internalNumber = created.number;
+              internalUrl = created.html_url;
+              core.info(`Created internal #${internalNumber} → ${internalUrl}`);
+            }
+
+            // ── 3) Stash a hidden marker on the public issue body ──
+            // Bidirectional link that the mirror-comments workflow (this
+            // repo) and the sync-back workflow (private repo) both use to
+            // find each other's issue numbers.
+            const marker = `<!-- lgtm-internal-issue:${internalNumber} -->`;
+            const originalBody = publicIssue.body || "";
+            if (!originalBody.includes("lgtm-internal-issue:")) {
+              const newBody = `${originalBody}\n\n${marker}`;
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: publicNumber,
+                body: newBody,
+              });
+              core.info(`Stamped marker on public #${publicNumber}`);
+            }
+
+            // ── 4) Label + confirmation on the public issue ─────────
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: publicNumber,
+                labels: [isDup ? "duplicate" : "triaged"],
+              });
+            } catch (err) {
+              // Label may not exist yet. Fine — cosmetic.
+              core.info(`addLabels skipped: ${err.message}`);
+            }
+
+            const confirmBody = isDup
+              ? [
+                  `Thanks for filing this, @${publicAuthor}! 🐈`,
+                  ``,
+                  `Looks like an existing report is already on our internal tracker. We've cross-linked your thread so any new details you share here reach the team.`,
+                  ``,
+                  `Follow-ups you add here will be mirrored to the internal issue automatically. When it's fixed, we'll close this one with the release version.`,
+                ].join("\n")
+              : [
+                  `Thanks for filing this, @${publicAuthor}! 🐈`,
+                  ``,
+                  `Picked up by the team — tracked internally.`,
+                  ``,
+                  `**What happens next:**`,
+                  `- Follow-up comments you add here mirror to our internal thread automatically.`,
+                  `- When it's fixed / shipped / declined we'll comment + close this issue with the reason.`,
+                  ``,
+                  `_Please don't share credentials, tokens, or private code in this thread — it's public._`,
+                ].join("\n");
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issue.number,
-              body: `Thanks for filing this! This issue has been picked up by the team and is being tracked internally.`,
+              issue_number: publicNumber,
+              body: confirmBody,
             });
-
-            console.log(`Copied issue #${issue.number} -> ${created.html_url}`);

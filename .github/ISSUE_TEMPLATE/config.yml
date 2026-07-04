@@ -1,8 +1,21 @@
+# Disable blank issues — forces users into one of the structured
+# templates above. Reduces "??" issues that then need a follow-up
+# comment to make useful.
 blank_issues_enabled: false
+
+# Redirect non-issue asks to the right surface. Keeps this repo focused
+# on public bugs + features while security disclosures + billing +
+# support use their proper channels.
 contact_links:
-  - name: Documentation
-    url: https://looksgoodtomeow.in/docs
-    about: Check the docs before filing an issue
-  - name: Email Support
-    url: mailto:tarinagarwal@gmail.com
-    about: For private or account-specific issues
+  - name: 🔒 Security vulnerability disclosure
+    url: https://looksgoodtomeow.in/security
+    about: Found a security bug? Please do NOT open a public issue. See the coordinated disclosure policy.
+  - name: 💳 Billing / account / payment
+    url: mailto:support@looksgoodtomeow.in
+    about: Subscription, refund, invoice, or account questions.
+  - name: 💬 General questions
+    url: https://looksgoodtomeow.in/contact
+    about: Not a bug and not a feature? Reach us via the contact form.
+  - name: 📖 Documentation
+    url: https://docs.looksgoodtomeow.in
+    about: Setup guide, CLI reference, and FAQs before opening an issue.

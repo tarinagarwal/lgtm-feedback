@@ -1,0 +1,72 @@
+name: ✨ Feature request
+description: Suggest something we should build.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas welcome. A good feature request explains the **problem** first —
+        we can usually think of multiple solutions once we understand what
+        you're trying to do.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: What's the workflow / pain point? Skip solutions for now — just the problem.
+      placeholder: e.g. "Our team wants to enforce a security-blocking merge check but the current LGTM policy only warns."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would ideally happen?
+      description: Your best idea for the fix. Rough is fine — we'll iterate.
+      placeholder: e.g. "A per-repo policy toggle: 'critical severity findings block the PR via Check Runs.'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: What have you tried already? What almost works but doesn't?
+      placeholder: e.g. "Tried using branch protection with required status checks — but LGTM doesn't set a failing status yet."
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which part of LGTM does this affect?
+      multiple: true
+      options:
+        - Code review pipeline (6 agents / synthesizer)
+        - LGTM Security (CI/CD scans, policy editor)
+        - Runtime Watchdog Action
+        - CLI
+        - Dashboard
+        - GitHub App / auto-review
+        - Billing / plans / top-ups
+        - Docs
+        - Other
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: How much would this help you?
+      options:
+        - Nice-to-have — I have a workaround
+        - Would use it monthly
+        - Would use it weekly
+        - Blocker — I can't use LGTM effectively without this
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: sanity
+    attributes:
+      label: Sanity checks
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
